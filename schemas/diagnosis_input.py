@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 
 class DiagnosisInput(BaseModel):
-    age: float
+    age: int
     gender: str
     diabetes: str
     diabetes_type: str

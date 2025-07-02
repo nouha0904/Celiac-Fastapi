@@ -1,4 +1,6 @@
 from pydantic import BaseModel
 
-class IngredientInput(BaseModel):
-    ingredients_text: str
+class AnalyzeInput(BaseModel):
+    barcode: str = None
+    image: str = None  # Base64 encoded image
+    language: str = "ar"
