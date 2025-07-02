@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from services.diagnosis import diagnosis_router
-from services.ingredients_scan import ingredients_router
 from services.ingredients_scan import analyze_router
 
 
@@ -22,7 +21,6 @@ app = FastAPI(
 )
 
 app.include_router(diagnosis_router, prefix="/diagnosis", tags=["Diagnosis"])
-app.include_router(ingredients_router, prefix="/scan", tags=["Ingredients"])
 app.include_router(analyze_router, prefix="/analyze", tags=["Analyze"]) 
 
 @app.get("/", include_in_schema=False)
