@@ -16,34 +16,20 @@ GLUTEN_INGREDIENTS = [
 ]
 
 def extract_text_from_image(image_base64: str) -> str:
-    """استخراج النص من الصورة باستخدام OCR"""
     try:
-        # تحويل Base64 إلى صورة
         image_data = base64.b64decode(image_base64)
         image = Image.open(io.BytesIO(image_data))
-        
-        # تحسين الصورة لاستخراج النص
-        image = image.convert('L')  # تحويل إلى تدرج الرمادي
-        image = image.point(lambda x: 0 if x < 140 else 255)  # تحسين التباين
-        
-        # استخراج النص باستخدام Tesseract OCR
+        image = image.convert('L')
+        image = image.point(lambda x: 0 if x < 140 else 255)
         text = pytesseract.image_to_string(image, lang='ara+eng')
         return text
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"فشل في استخراج النص: {str(e)}")
 
 def analyze_ingredients(text: str) -> dict:
-    """تحليل النص للكشف عن وجود الجلوتين"""
     try:
-        # تنظيف النص
         text = text.lower().strip()
-        
-        # البحث عن مكونات تحتوي على جلوتين
-        found_gluten = []
-        for ingredient in GLUTEN_INGREDIENTS:
-            if re.search(rf'\b{ingredient}\b', text):
-                found_gluten.append(ingredient)
-        
+        found_gluten = [g for g in GLUTEN_INGREDIENTS if re.search(rf'\b{g}\b', text)]
         if found_gluten:
             return {
                 "containsGluten": True,
@@ -63,9 +49,7 @@ def analyze_ingredients(text: str) -> dict:
 @analyze_router.post("/")
 async def analyze_product(input_data: AnalyzeInput):
     try:
-        # إذا كان هناك باركود، نعطيه أولوية
         if input_data.barcode:
-            # في تطبيق حقيقي، نبحث في قاعدة بيانات المنتجات
             return {
                 "containsGluten": True,
                 "confidence": 0.95,
@@ -73,12 +57,10 @@ async def analyze_product(input_data: AnalyzeInput):
                 "advice": "يحتوي على الجلوتين - غير آمن",
                 "productName": "منتج بالباركود: " + input_data.barcode
             }
-        
-        # إذا كانت هناك صورة، نستخرج النص منها
+
         if input_data.image:
             text = extract_text_from_image(input_data.image)
             result = analyze_ingredients(text)
-            
             return {
                 "containsGluten": result["containsGluten"],
                 "confidence": 0.85,
@@ -86,7 +68,7 @@ async def analyze_product(input_data: AnalyzeInput):
                 "advice": result["advice"],
                 "productName": "منتج من الصورة"
             }
-        
+
         raise HTTPException(status_code=400, detail="يجب تقديم باركود أو صورة")
     
     except Exception as e:

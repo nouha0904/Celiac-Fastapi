@@ -1,6 +1,7 @@
 from pydantic import BaseModel
+from typing import Optional
 
 class AnalyzeInput(BaseModel):
-    barcode: str = None
-    image: str = None  # Base64 encoded image
+    barcode: Optional[str] = None
+    image: Optional[str] = None  # Base64 encoded image
     language: str = "ar"
