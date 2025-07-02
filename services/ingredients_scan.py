@@ -1,10 +1,12 @@
+# src/services/ingredients_scan.py
+from src.schemas.analyze_input import AnalyzeInput  # تحديث المسار
 from fastapi import APIRouter, HTTPException
-from schemas.analyze_input import AnalyzeInput
 import base64
 import io
 import pytesseract
 from PIL import Image
 import re
+import os
 
 analyze_router = APIRouter()
 

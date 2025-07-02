@@ -4,13 +4,17 @@ import pandas as pd
 import joblib
 import os
 import numpy as np
+from pathlib import Path
 
 diagnosis_router = APIRouter()
 
-# حل مشكلة تحميل النموذج
-MODEL_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(MODEL_DIR, "../../models/celiac_model.pkl")
-ENCODERS_PATH = os.path.join(MODEL_DIR, "../../models/feature_encoders.pkl")
+# Get the absolute path to the current file
+current_dir = Path(__file__).resolve().parent
+MODEL_PATH = current_dir.parent / "models" / "celiac_model.pkl"
+ENCODERS_PATH = current_dir.parent / "models" / "feature_encoders.pkl"
+
+print(f"🔍 Model path: {MODEL_PATH}")
+print(f"🔍 Encoders path: {ENCODERS_PATH}")
 
 try:
     model = joblib.load(MODEL_PATH)
@@ -27,23 +31,29 @@ def diagnose(input_data: DiagnosisInput):
         raise HTTPException(status_code=500, detail="Model not loaded. Please check server logs.")
     
     try:
-        # إنشاء DataFrame من بيانات الإدخال
+        # Create DataFrame from input data
         data_dict = input_data.dict()
-        data_df = pd.DataFrame([data_dict])
         
-        # ترميز البيانات الفئوية
-        categorical_cols = [
-            'Gender', 'Diabetes', 'Diabetes Type', 'Diarrhoea',
-            'Abdominal', 'Short_Stature', 'Sticky_Stool',
-            'Weight_loss', 'Marsh', 'cd_type'
+        # Create a DataFrame with all expected columns
+        expected_columns = [
+            'Age', 'Gender', 'Diabetes', 'Diabetes Type', 'Diarrhoea', 
+            'IgA', 'IgG', 'IgM', 'Abdominal', 'Short_Stature', 
+            'Sticky_Stool', 'Weight_loss', 'Marsh', 'cd_type'
         ]
         
-        # تعيين الأسماء الصحيحة للأعمدة
+        # Initialize with zeros for all columns
+        data_df = pd.DataFrame(0, index=[0], columns=expected_columns)
+        
+        # Map input names to expected column names
         column_mapping = {
+            'age': 'Age',
             'gender': 'Gender',
             'diabetes': 'Diabetes',
             'diabetes_type': 'Diabetes Type',
             'diarrhoea': 'Diarrhoea',
+            'iga': 'IgA',
+            'igg': 'IgG',
+            'igm': 'IgM',
             'abdominal': 'Abdominal',
             'short_stature': 'Short_Stature',
             'sticky_stool': 'Sticky_Stool',
@@ -52,48 +62,49 @@ def diagnose(input_data: DiagnosisInput):
             'cd_type': 'cd_type'
         }
         
-        data_df.rename(columns=column_mapping, inplace=True)
+        # Fill in values from input
+        for input_name, col_name in column_mapping.items():
+            if input_name in data_dict:
+                data_df[col_name] = data_dict[input_name]
         
-        # تطبيق الترميز على كل عمود
+        # Encode categorical features
+        categorical_cols = [
+            'Gender', 'Diabetes', 'Diabetes Type', 'Diarrhoea',
+            'Abdominal', 'Short_Stature', 'Sticky_Stool',
+            'Weight_loss', 'Marsh', 'cd_type'
+        ]
+        
         for col in categorical_cols:
-            if col in data_df.columns:
-                # معالجة القيم الجديدة
+            if col in encoders:
+                # Handle unseen categories
                 all_classes = list(encoders[col].classes_)
                 data_df[col] = data_df[col].apply(
                     lambda x: x if x in all_classes else all_classes[0]
                 )
                 data_df[col] = encoders[col].transform(data_df[col])
+            else:
+                print(f"⚠️ Encoder for {col} not found")
         
-        # إعادة ترتيب الأعمدة كما في بيانات التدريب
-        expected_columns = [
-            'Age', 'Gender', 'Diabetes', 'Diabetes Type', 'Diarrhoea', 'IgA', 'IgG', 'IgM',
-            'Abdominal', 'Short_Stature', 'Sticky_Stool', 'Weight_loss', 'Marsh', 'cd_type'
-        ]
+        # Convert to correct data types
+        data_df = data_df.astype(float)
         
-        # إضافة أي أعمدة مفقودة بقيمة صفر
-        for col in expected_columns:
-            if col not in data_df.columns:
-                data_df[col] = 0
-        
-        data_df = data_df[expected_columns]
-        
-        # التنبؤ
+        # Prediction
         probability = model.predict_proba(data_df)[0]
         risk_percentage = round(probability[1] * 100, 2)
         
-        # تحديد مستوى الخطورة
+        # Risk assessment
         if risk_percentage > 75:
             risk_level = "High Risk"
-            description = "Strong likelihood of Celiac disease. Consultation with a gastroenterologist is highly recommended."
+            description = "احتمالية عالية للإصابة بمرض السيلياك. يوصى باستشارة أخصائي أمراض الجهاز الهضمي."
         elif risk_percentage > 50:
             risk_level = "Moderate Risk"
-            description = "Possible Celiac disease. Further testing and medical consultation advised."
+            description = "احتمالية متوسطة للإصابة. يوصى بإجراء فحوصات إضافية ومتابعة طبية."
         elif risk_percentage > 25:
             risk_level = "Low Risk"
-            description = "Low probability of Celiac disease. Monitor symptoms and consult if conditions worsen."
+            description = "احتمالية منخفضة للإصابة. راقب الأعراض واستشر الطبيب إذا ساءت حالتك."
         else:
             risk_level = "Very Low Risk"
-            description = "Unlikely to have Celiac disease. Maintain regular checkups."
+            description = "احتمالية ضعيفة جدًا للإصابة. حافظ على الفحوصات الدورية."
         
         return {
             "risk_percentage": risk_percentage,
@@ -103,4 +114,6 @@ def diagnose(input_data: DiagnosisInput):
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Prediction error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"خطأ في التنبؤ: {str(e)}")
