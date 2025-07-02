@@ -1,7 +1,8 @@
 from fastapi import FastAPI
 from services.diagnosis import diagnosis_router
 from services.ingredients_scan import ingredients_router
-from src.services.ingredients_scan import analyze_router
+from services.ingredients_scan import analyze_router
+
 
 app = FastAPI(
     title="Smart Celiac",
